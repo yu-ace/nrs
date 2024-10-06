@@ -27,15 +27,8 @@ public class ServerHandler extends ChannelInboundHandlerAdapter {
         String name = strings.length > 0 ? strings[0] : null;
         String key = strings.length > 1 ? strings[1] : null;
         String value = strings.length > 2 ? strings[2] : null;
-        Object newValue = null;
-        if(value != null){
-            try{
-                newValue = Integer.parseInt(value);
-            }catch (Exception e){
-                newValue = value;
-            }
-        }
-        Command command = new Command(name,key,newValue);
+
+        Command command = new Command(name,key,value);
         result = commandService.executeCommand(command);
 
         ctx.writeAndFlush(Unpooled.copiedBuffer(result.toString(), CharsetUtil.UTF_8));

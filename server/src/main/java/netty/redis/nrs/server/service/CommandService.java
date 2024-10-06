@@ -1,12 +1,12 @@
 package netty.redis.nrs.server.service;
 
+import io.netty.buffer.Unpooled;
+import io.netty.util.CharsetUtil;
 import netty.redis.nrs.server.storage.MemoryStorage;
+import netty.redis.nrs.server.storage.Record;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 
 public class CommandService {
@@ -17,8 +17,11 @@ public class CommandService {
     public static CommandService getInstance(){
         return commandService;
     }
+
+    private static final Integer TYPE_INTEGER = 0;
+    private static final Integer TYPE_STRING = 1;
     private static final MemoryStorage memoryStorage = MemoryStorage.getInstance();
-    private final Map<String, Function<Command, Object>> commandMap = new HashMap<>();
+    private final Map<String, Function<Command, String>> commandMap = new HashMap<>();
 
     public void initializeCommands() {
         commandMap.put("set", this::setKey);
@@ -33,9 +36,9 @@ public class CommandService {
         commandMap.put("shutDown",command -> shutDown());
     }
 
-    public Object executeCommand(Command command) {
-        Object result;
-        Function<Command, Object> action = commandMap.get(command.getName());
+    public String executeCommand(Command command) {
+        String result;
+        Function<Command, String> action = commandMap.get(command.getName());
         if (action != null) {
             result = action.apply(command);
         } else {
@@ -60,47 +63,87 @@ public class CommandService {
     }
 
     public String exists(Command command){
-        Object s = memoryStorage.get(command.getKey());
-        if(s != " " && s != "null"){
-            return "key 存在";
+        Record record = memoryStorage.get(command.getKey());
+        if(record.getType() == null){
+            return "0";
         }
-        return "key 不存在";
+        return "1";
     }
+
     public String setNX(Command command){
         if(command.getKey() != null){
-            Object s = memoryStorage.get(command.getKey());
-            if(!(Objects.equals(s, " ")) && !(Objects.equals(s, "null"))){
-                return "key 存在";
+            Record record = memoryStorage.get(command.getKey());
+            if(record.getType() != null){
+                return "0";
             }
             memoryStorage.set(memoryStorage.buffer,memoryStorage.map,command.getKey(), 1);
-            return "key 添加成功";
+            return "1";
         }else {
-            return "error";
+            return "-1";
         }
     }
 
-    public Object incr(Command command){
+    public String incr(Command command){
         return memoryStorage.incr(command.getKey());
     }
 
-    public Object decr(Command command){
+    public String decr(Command command){
         return memoryStorage.decr(command.getKey());
     }
 
     public String setKey(Command command){
         if(command.getKey() != null && command.getValue() != null){
-            memoryStorage.set(memoryStorage.buffer,memoryStorage.map,command.getKey(), command.getValue());
-            return "set ok";
+            String value = command.getValue();
+            try{
+                int newValue = Integer.parseInt(value);
+                memoryStorage.set(memoryStorage.buffer,memoryStorage.map,command.getKey(), newValue);
+            }catch (Exception e){
+                memoryStorage.set(memoryStorage.buffer,memoryStorage.map,command.getKey(), command.getValue());
+            }
+            return "1";
         }else {
-            return "set error";
+            return "0";
         }
     }
 
-    public Object getValue(Command command){
-        return memoryStorage.get(command.getKey());
+    public String getValue(Command command){
+        String result;
+        Record record = memoryStorage.get(command.getKey());
+        if(record.getType() != null){
+            if("Integer".equals(record.getType())){
+                ByteBuffer byteBuffer = ByteBuffer.wrap(record.getValue());
+                result = Integer.toString(byteBuffer.getInt());
+            }else if("String".equals(record.getType())){
+                result = new String(record.getValue(), CharsetUtil.UTF_8);
+            }else {
+                List<Object> list = getList(record);
+                result = list.toString();
+            }
+        }else {
+            result = "null";
+        }
+        return result;
     }
 
-    public Object stat(){
+    private List<Object> getList(Record record) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(record.getValue());
+        int size = byteBuffer.getInt();
+        List<Object> list = new ArrayList<>();
+        for(int i = 0;i < size;i++){
+            int type = byteBuffer.getInt();
+            if(type == TYPE_STRING){
+                int length = byteBuffer.getInt();
+                byte[] bytes = new byte[length];
+                byteBuffer.get(bytes);
+                list.add(new String(bytes,CharsetUtil.UTF_8));
+            }else {
+                list.add(byteBuffer.getInt());
+            }
+        }
+        return list;
+    }
+
+    public String stat(){
         Integer usedMemory = memoryStorage.usedMemory();
         int freeMemory = memoryStorage.FreeMemory();
         return "usedMemory:"+ usedMemory+"\nfreeMemory:" + freeMemory;

@@ -1,35 +1,33 @@
 package netty.redis.nrs.server.storage;
 
-import java.io.Serializable;
-
-public class Record implements Serializable {
-    Integer position;
-    Integer length;
-    String type;
+public class Record {
+    private String key;
+    private byte[] value;
+    private String type;
 
     public Record() {
     }
 
-    public Record(Integer position, Integer length, String type) {
-        this.position = position;
-        this.length = length;
+    public Record(String key, byte[] value, String type) {
+        this.key = key;
+        this.value = value;
         this.type = type;
     }
 
-    public Integer getPosition() {
-        return position;
+    public String getKey() {
+        return key;
     }
 
-    public void setPosition(Integer position) {
-        this.position = position;
+    public void setKey(String key) {
+        this.key = key;
     }
 
-    public Integer getLength() {
-        return length;
+    public byte[] getValue() {
+        return value;
     }
 
-    public void setLength(Integer length) {
-        this.length = length;
+    public void setValue(byte[] value) {
+        this.value = value;
     }
 
     public String getType() {

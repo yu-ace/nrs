@@ -1,14 +1,14 @@
 package netty.redis.nrs.server.service;
 
 public class Command {
-    String name;
-    String key;
-    Object value;
+    private String name;
+    private String key;
+    private String value;
 
     public Command() {
     }
 
-    public Command(String name, String key, Object value) {
+    public Command(String name, String key, String value) {
         this.name = name;
         this.key = key;
         this.value = value;
@@ -30,11 +30,11 @@ public class Command {
         this.key = key;
     }
 
-    public Object getValue() {
+    public String getValue() {
         return value;
     }
 
-    public void setValue(Object value) {
+    public void setValue(String value) {
         this.value = value;
     }
 }

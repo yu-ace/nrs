@@ -1,6 +1,5 @@
 package netty.redis.nrs.server.storage;
 
-import io.netty.util.CharsetUtil;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -9,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class MemoryStorage {
-    public Map<String, Record> map;
+    public Map<String, Index> map;
     public ByteBuffer buffer;
     private static final Integer TYPE_INTEGER = 0;
     private static final Integer TYPE_STRING = 1;
@@ -42,7 +41,7 @@ public class MemoryStorage {
             try{
                 FileInputStream fileInputStream = new FileInputStream("C:\\Users\\cfcz4\\OneDrive\\Desktop\\map.bin");
                 ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
-                map = (Map<String, Record>) objectInputStream.readObject();
+                map = (Map<String, Index>) objectInputStream.readObject();
             }catch (Exception e){
                 e.getStackTrace();
             }
@@ -64,47 +63,25 @@ public class MemoryStorage {
         file.close();
     }
 
-    public Object get(String key) {
-        Object value;
+    public Record get(String key) {
+        Record record;
         if(map.containsKey(key)){
             buffer.limit(1024*1024);
-            Record record = map.get(key);
-            buffer.position(record.getPosition());
-            if("String".equals(map.get(key).getType())){
-                buffer.limit(record.getPosition() + record.getLength());
-                ByteBuffer slice = buffer.slice();
-                byte[] bytes = new byte[slice.remaining()];
-                slice.get(bytes);
-                value = new String(bytes, CharsetUtil.UTF_8);
-            }else if("Integer".equals(map.get(key).getType())){
-                value = buffer.getInt();
-            }else {
-                value = getList();
-            }
+            Index index = map.get(key);
+            buffer.position(index.getPosition());
+            buffer.limit(index.getPosition() + index.getLength());
+            ByteBuffer slice = buffer.slice();
+            byte[] bytes = new byte[slice.remaining()];
+            slice.get(bytes);
+            record = new Record(key,bytes,map.get(key).getType());
         }else {
-            value = "null";
+            record = new Record(key,null,null);
         }
-        return value;
+        return record;
     }
 
-    private List<Object> getList() {
-        int size = buffer.getInt();
-        List<Object> list = new ArrayList<>();
-        for(int i = 0;i < size;i++){
-            int type = buffer.getInt();
-            if(type == TYPE_STRING){
-                int length = buffer.getInt();
-                byte[] bytes = new byte[length];
-                buffer.get(bytes);
-                list.add(new String(bytes,CharsetUtil.UTF_8));
-            }else {
-                list.add(buffer.getInt());
-            }
-        }
-        return list;
-    }
 
-    public void set(ByteBuffer byteBuffer, Map<String, Record> map, String key, Object value) {
+    public void set(ByteBuffer byteBuffer, Map<String, Index> map, String key, Object value) {
         byte[] valueByte;
         String type;
         if(value instanceof String){
@@ -117,11 +94,11 @@ public class MemoryStorage {
             valueByte = processList((List<?>) value);
             type = "List";
         }
-        Record record = getRecord(byteBuffer,valueByte, type);
-        map.put(key,record);
+        Index index = getIndex(byteBuffer,valueByte, type);
+        map.put(key,index);
     }
 
-    private Record getRecord(ByteBuffer buffer, byte[] valueByte, String type) {
+    private Index getIndex(ByteBuffer buffer, byte[] valueByte, String type) {
         int valurLength = valueByte.length;
         buffer.position(0);
         int size = buffer.getInt();
@@ -142,7 +119,7 @@ public class MemoryStorage {
         buffer.position(startPosition);
         buffer.put(valueByte);
 
-        return new Record(startPosition, valurLength, type);
+        return new Index(startPosition, valurLength, type);
     }
 
     private byte[] processList(List<?> value) {
@@ -169,31 +146,35 @@ public class MemoryStorage {
         return null;
     }
 
-    public Object incr(String key){
-        Object o = get(key);
-        if(o instanceof Integer value){
+    public String incr(String key){
+        Record record = get(key);
+        if("Integer".equals(record.getType())){
+            ByteBuffer byteBuffer = ByteBuffer.wrap(record.getValue());
+            int value = byteBuffer.getInt();
             value++;
             set(buffer,map,key,value);
-            return value;
-        }else if(o == null || ("null".equals(o))){
+            return Integer.toString(value);
+        }else if(record.getType() == null){
             set(buffer,map,key,1);
-            return 1;
+            return Integer.toString(1);
         }else {
-            return "value的类型不是Integer值";
+            return "null";
         }
     }
 
-    public Object decr(String key){
-        Object o = get(key);
-        if(o instanceof Integer value){
+    public String decr(String key){
+        Record record = get(key);
+        if("Integer".equals(record.getType())){
+            ByteBuffer byteBuffer = ByteBuffer.wrap(record.getValue());
+            int value = byteBuffer.getInt();
             value--;
             set(buffer,map,key,value);
-            return value;
-        }else if(o == null || ("null".equals(o))){
+            return Integer.toString(value);
+        }else if(record.getType() == null){
             set(buffer,map,key,-1);
-            return -1;
+            return Integer.toString(-1);
         }else {
-            return "value的类型不是Integer值";
+            return "null";
         }
     }
 
