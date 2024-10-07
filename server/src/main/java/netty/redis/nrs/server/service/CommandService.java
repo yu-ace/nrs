@@ -6,6 +6,7 @@ import netty.redis.nrs.server.storage.MemoryStorage;
 import netty.redis.nrs.server.storage.Record;
 
 import java.nio.ByteBuffer;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 
@@ -47,8 +48,8 @@ public class CommandService {
         return result;
     }
 
-    public void init() throws Exception{
-        memoryStorage.initMap();
+    public void init(Map<String,Object> setting) throws Exception{
+        memoryStorage.initMap(setting);
         memoryStorage.init();
     }
 
@@ -168,12 +169,16 @@ public class CommandService {
 
     public void clean() {
         synchronized (this){
-            ByteBuffer byteBuffer = ByteBuffer.allocate(1024 * 1024);
-            Set<String> strings = memoryStorage.keyList();
-            for(String s:strings){
-                memoryStorage.set(byteBuffer,memoryStorage.map,s,memoryStorage.get(s));
+            try{
+                ByteBuffer byteBuffer = ByteBuffer.allocate(1024 * 1024);
+                Set<String> strings = memoryStorage.keyList();
+                for(String s:strings){
+                    memoryStorage.set(byteBuffer,memoryStorage.map,s,memoryStorage.get(s));
+                }
+                memoryStorage.buffer = byteBuffer;
+            }catch (Exception e){
+                System.out.println(e.getMessage());
             }
-            memoryStorage.buffer = byteBuffer;
         }
     }
 }

@@ -19,10 +19,40 @@ public class MemoryStorage {
         return memoryStorage;
     }
 
-    public void init() throws Exception {
-        File file = new File("C:\\Users\\cfcz4\\OneDrive\\Desktop\\data.bin");
+    String dataPath;
+    String mapPath;
+    Integer totalMemory;
+
+    private void readConfig(Map<String, Object> setting) {
+        Iterator<String> iterator = setting.keySet().iterator();
+        iterator.next();
+        iterator.next();
+        String configKey = iterator.next();
+        Map<String,Object> config = (Map<String, Object>) setting.get(configKey);
+        totalMemory = (Integer) config.get("totalMemory");
+        dataPath = (String) config.get("dataPath");
+        mapPath = (String) config.get("mapPath");
+    }
+
+    public void initMap(Map<String,Object> setting) {
+        readConfig(setting);
+        File file = new File(mapPath);
+        map = new HashMap<>();
         if(file.exists()){
-            try(RandomAccessFile read = new RandomAccessFile("C:\\Users\\cfcz4\\OneDrive\\Desktop\\data.bin", "rw")) {
+            try{
+                FileInputStream fileInputStream = new FileInputStream(mapPath);
+                ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
+                map = (Map<String, Index>) objectInputStream.readObject();
+            }catch (Exception e){
+                e.getStackTrace();
+            }
+        }
+    }
+
+    public void init() throws Exception {
+        File file = new File(dataPath);
+        if(file.exists()){
+            try(RandomAccessFile read = new RandomAccessFile(dataPath, "rw")) {
                 long length = read.length();
                 buffer = ByteBuffer.allocate((int) length);
                 FileChannel channel = read.getChannel();
@@ -34,28 +64,14 @@ public class MemoryStorage {
         }
     }
 
-    public void initMap() {
-        File file = new File("C:\\Users\\cfcz4\\OneDrive\\Desktop\\map.bin");
-        map = new HashMap<>();
-        if(file.exists()){
-            try{
-                FileInputStream fileInputStream = new FileInputStream("C:\\Users\\cfcz4\\OneDrive\\Desktop\\map.bin");
-                ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
-                map = (Map<String, Index>) objectInputStream.readObject();
-            }catch (Exception e){
-                e.getStackTrace();
-            }
-        }
-    }
-
     public void saveMap() throws Exception {
-        FileOutputStream fileOutputStream = new FileOutputStream("C:\\Users\\cfcz4\\OneDrive\\Desktop\\map.bin");
+        FileOutputStream fileOutputStream = new FileOutputStream(mapPath);
         ObjectOutputStream objectOutputStream = new ObjectOutputStream(fileOutputStream);
         objectOutputStream.writeObject(map);
     }
 
     public void shutDown() throws Exception{
-        RandomAccessFile file = new RandomAccessFile("C:\\Users\\cfcz4\\OneDrive\\Desktop\\data.bin","rw");
+        RandomAccessFile file = new RandomAccessFile(dataPath,"rw");
         FileChannel channel = file.getChannel();
         buffer.flip();
         buffer.limit(buffer.capacity());
@@ -66,7 +82,7 @@ public class MemoryStorage {
     public Record get(String key) {
         Record record;
         if(map.containsKey(key)){
-            buffer.limit(1024*1024);
+            buffer.limit(totalMemory);
             Index index = map.get(key);
             buffer.position(index.getPosition());
             buffer.limit(index.getPosition() + index.getLength());
@@ -95,6 +111,11 @@ public class MemoryStorage {
             type = "List";
         }
         Index index = getIndex(byteBuffer,valueByte, type);
+        map.put(key,index);
+    }
+
+    public void set(ByteBuffer byteBuffer, Map<String, Index> map, String key, Record record) {
+        Index index = getIndex(byteBuffer,record.getValue(), record.getType());
         map.put(key,index);
     }
 
@@ -202,7 +223,7 @@ public class MemoryStorage {
             buffer.position(index);
             int lastStartPosition = buffer.getInt();
             int userHeadPosition = 4 + 8 * size;
-            usedMemory = 1024*1024 - lastStartPosition + userHeadPosition;
+            usedMemory = totalMemory - lastStartPosition + userHeadPosition;
         }else {
             usedMemory = 0;
         }
@@ -210,6 +231,6 @@ public class MemoryStorage {
     }
 
     public Integer FreeMemory(){
-        return 1024*1024 - usedMemory();
+        return totalMemory - usedMemory();
     }
 }

@@ -1,5 +1,6 @@
 package netty.redis.nrs.server;
 
+import cn.hutool.core.io.FileUtil;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -9,7 +10,17 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import netty.redis.nrs.server.service.CommandService;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.Options;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -17,10 +28,16 @@ import java.util.concurrent.TimeUnit;
 public class Server {
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static final CommandService commandService = CommandService.getInstance();
+    static Integer initialDelay;
+    static Integer period;
+    static TimeUnit timeUnit;
 
     public static void main(String[] args) throws Exception{
-        commandService.init();
-        scheduler.scheduleAtFixedRate(commandService::clean,0,30, TimeUnit.MINUTES);
+        CommandLine commandLine = createCommandLine(args);
+        Map<String, Object> setting = config(commandLine.getOptionValue("c"));
+        readConfig(setting);
+        commandService.init(setting);
+        scheduler.scheduleAtFixedRate(commandService::clean,initialDelay,period, timeUnit);
         connection();
     }
     public static void connection() throws Exception{
@@ -56,4 +73,34 @@ public class Server {
         }
     }
 
+    private static CommandLine createCommandLine(String... args) throws Exception {
+        Options options = new Options();
+        options.addOption("h","help",false,"print help");
+        options.addOption("c","configPath",true,"the path of config");
+        CommandLineParser parser = new DefaultParser();
+        try{
+            return parser.parse(options, args);
+        }catch (Exception e){
+            throw new Exception(e.getMessage());
+        }
+    }
+
+    private static Map<String, Object> config(String configPath) throws Exception {
+        File[] configFiles = FileUtil.ls(configPath);
+        File file = configFiles[0];
+        InputStream inputStream = new FileInputStream(file);
+        Yaml yaml = new Yaml();
+        return yaml.load(inputStream);
+    }
+
+    private static void readConfig(Map<String,Object> setting){
+        Iterator<String> iterator = setting.keySet().iterator();
+        iterator.next();
+        String timerKey = iterator.next();
+        Map<String,Object> config = (Map<String,Object>) setting.get(timerKey);
+        initialDelay = (Integer) config.get("initialDelay");
+        period = (Integer) config.get("period");
+        String unit = (String) config.get("unit");
+        timeUnit = TimeUnit.valueOf(unit);
+    }
 }
