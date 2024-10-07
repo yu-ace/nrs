@@ -233,4 +233,20 @@ public class MemoryStorage {
     public Integer FreeMemory(){
         return totalMemory - usedMemory();
     }
+
+    public void clean() {
+        synchronized (this){
+            try{
+                System.out.println("clean");
+                ByteBuffer byteBuffer = ByteBuffer.allocate(1024 * 1024);
+                Set<String> strings = keyList();
+                for(String s:strings){
+                    set(byteBuffer,map,s,get(s));
+                }
+                buffer = byteBuffer;
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+            }
+        }
+    }
 }

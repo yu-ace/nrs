@@ -167,18 +167,7 @@ public class CommandService {
         }
     }
 
-    public void clean() {
-        synchronized (this){
-            try{
-                ByteBuffer byteBuffer = ByteBuffer.allocate(1024 * 1024);
-                Set<String> strings = memoryStorage.keyList();
-                for(String s:strings){
-                    memoryStorage.set(byteBuffer,memoryStorage.map,s,memoryStorage.get(s));
-                }
-                memoryStorage.buffer = byteBuffer;
-            }catch (Exception e){
-                System.out.println(e.getMessage());
-            }
-        }
+    public void clean(){
+        memoryStorage.clean();
     }
 }
